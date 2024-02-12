@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -11,6 +10,11 @@ type NeuralNetwork struct {
 	LR      float64       // скорость обучения
 	EPOCH   int           // кол-во эпох обучения
 }
+
+//TODO: чтобы учитывалось смещение B biases + просчитывалось в forward() и при создании весов тоже. Можно сделать как Доп.Нейрон
+
+//TODO: сделать обработку ошибок с тем что дата сет и кол-во входных нейронов совпадало
+//TODO: сделать обработку ошибок с тем чтобы ожидаемые результаты с выходными как то правильно работали
 
 func NewNeuralNetwork(neurons [][]float64, w [][][]float64, LR float64, EPOCH int) *NeuralNetwork {
 	return &NeuralNetwork{neurons: neurons, w: w, LR: LR, EPOCH: EPOCH}
@@ -22,6 +26,14 @@ func createNeurons(a ...int) (neurons [][]float64) {
 		neurons[i] = make([]float64, c)
 	}
 	return neurons
+}
+
+func createMatrixByNN(nn [][]float64) (m [][]float64) {
+	m = make([][]float64, len(nn))
+	for i, l := range nn {
+		m[i] = make([]float64, len(l))
+	}
+	return m
 }
 
 func createWeights(neurons [][]float64) (w [][][]float64) {
@@ -38,13 +50,28 @@ func createWeights(neurons [][]float64) (w [][][]float64) {
 const a = 1 // a - альфа для функции активации
 
 func main() {
-	nn := createNeurons(2, 3, 2)
-	w := createWeights(nn)
-	fmt.Println("%v", nn)
-	fmt.Println("%v", w)
+
+	//nn := createNeurons(2, 3)
+	//m := createMatrixByNN(nn)
+	//fmt.Printf("%v\n\n%v", nn, m)
+	//nn := make([][]float64, 2)
+	//nn[0] = []float64{0.5, 0.2}
+	//nn[1] = []float64{0, 0, 0}
+	//
+	//w := createWeights(nn)
+	//w[0][0][0] = 1
+	//w[0][0][1] = 2
+	//w[0][0][2] = 3
+	//w[0][1][0] = 4
+	//w[0][1][1] = 5
+	//w[0][1][2] = 6
+	//
+	//fmt.Printf("NN : %v\n", nn)
+	//fmt.Printf("W : %v\n", w)
+	//forward(nn[0], nn[1], w[0])
+	//fmt.Printf("NN : %v\n", nn)
+	//fmt.Printf("W : %v\n", w)
 	//var nn = NeuralNetwork{neurons: make([][]float64, 5), w: make([][][]float64, 4)}
-	//nn.neurons[0] = []float64{0.5, 0.2, 0, 1}
-	//nn.neurons[1] = []float64{0.3, 0.1, 1, 1}
 	//nn.neurons[2] = []float64{0.3, 0.1, 1, 1}
 	//nn.neurons[3] = []float64{0.3, 0.1, 1, 1}
 	//nn.neurons[4] = []float64{0.3, 0.1, 1, 1}
@@ -85,7 +112,6 @@ func generateWeights(w [][][]float64) {} // сгенерировать ранд�
 
 func activate(s float64) float64 { // функция активации
 	return math.Tanh(a * s) // гиперболический тангенс
-	//return 1 / (1 + math.Pow(math.E, -(a*s))) // сигмоидная функция
 }
 
 func forward(inputNeurons []float64, outputNeurons []float64, w [][]float64) { // функция прямого распространения
@@ -98,11 +124,31 @@ func forward(inputNeurons []float64, outputNeurons []float64, w [][]float64) { /
 	}
 }
 
-func backProp() { // Функция обратного распространения ошибки
+func backProp(nn *NeuralNetwork, exp []float64) { // Функция обратного распространения ошибки
 	// должен тут вызывать forward() и что-то получать и дальше считать цену ошибки
+	m := createMatrixByNN(nn.neurons)
+	lastLayer := len(nn.neurons) - 1
+	for i, n := range nn.neurons[lastLayer] {
+		m[lastLayer][i] = (1 / (math.Pow(math.Cosh(n), 2))) * (n - exp[i]) // n - полученное значение, exp - ожидаемое значение
+	}
 
+	for i := len(nn.neurons) - 2; i >= 0; i-- { // neuron layer
+		for j := 0; j < len(nn.neurons[i]); j++ { // some neuron
+			var sum float64
+			for k, elem := range nn.neurons[i+1] { // recursive sum for this neuron
+				sum += elem * nn.w[i][j][k]
+			}
+			m[i][j] = sum * (1 / (math.Pow(math.Cosh(nn.neurons[i][j]), 2))) // нашли б
+
+			for k, _ := range nn.neurons[i+1] { // коррекция весов
+				deltaW := -(nn.LR * m[i+1][j] * nn.neurons[i][j]) // dW - коррекция весов
+				nn.w[i][j][k] = nn.w[i][j][k] - deltaW
+			}
+		}
+	}
 }
 
+// TODO: сделать правильно ожидаемый результат обработку и работу с ним
 func train(nn *NeuralNetwork, data [][]float64, exp []float64) {
 
 	for e := 0; e < nn.EPOCH; e++ { // цикл по эпохам
@@ -110,15 +156,9 @@ func train(nn *NeuralNetwork, data [][]float64, exp []float64) {
 		for d := 0; d < len(data); d++ { // цикл по дата сету // вынести в функцию
 
 			for n := 0; n < len(nn.w); n++ { // цикл по слоям нейронов
-				// прогоняем все слои нейронов
-				// В цикле прогнать forward для каждого нейрона в слое, можно цикл сделать в forward()
 				forward(nn.neurons[n], nn.neurons[n+1], nn.w[n]) // текущий слой, следующий слой, веса между этими слоями
-				//fmt.Printf("%v", nn.neurons)
 			}
-
-			// вычисляем ошибку для каждого слоя
-			// меняем веса
-
+			backProp(nn, exp) // вычисляем ошибку и корректируем веса
 		}
 
 	}
