@@ -195,15 +195,15 @@ func train(nn NeuralNetwork, data [][]float64, exp [][]float64) {
 			backProp(nn, exp[d]) // вычисляем ошибку и корректируем веса
 		}
 
-		accuracy := evaluate()
-		fmt.Printf("Epoch: %d, Accuracy: %.2f\n", e, accuracy)
+		accuracy := evaluate(nn, data, exp)
+		fmt.Printf("Epoch: %d, Accuracy: %.2f\n", e, accuracy*100)
 
 	}
 }
 
-func predict(nn NeuralNetwork, testData []float64) []float64 { // вычислить
+func predict(nn NeuralNetwork, data []float64) []float64 { // вычислить
 	for i, _ := range nn.neurons[0] {
-		nn.neurons[0][i] = testData[i]
+		nn.neurons[0][i] = data[i]
 	}
 	forward(nn)
 
@@ -215,7 +215,29 @@ func predict(nn NeuralNetwork, testData []float64) []float64 { // вычисли
 	return outputs
 }
 
-func evaluate() (accuracy float64) {
+func evaluate(nn NeuralNetwork, data [][]float64, exp [][]float64) (accuracy float64) {
+	var count int
+	for i, d := range data {
+		outputs := predict(nn, d)
+		o := imvia(outputs) // output
+		t := imvia(exp[i])  // target - ожидаемое значение
+		if o == t {
+			count++
+		}
+	}
 
+	accuracy = float64(count) / float64(len(data))
 	return accuracy
+}
+
+func imvia(arr []float64) (i int) { //index max value in array
+	max := arr[0]
+	for j := 1; j < len(arr); j++ {
+		if arr[j] > max {
+			max = arr[j]
+			i = j
+		}
+	}
+
+	return i
 }
