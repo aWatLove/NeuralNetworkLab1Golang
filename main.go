@@ -150,9 +150,7 @@ func loadDataSet() (trainData [][]float64, expResults [][]float64, err error) {
 	return trainData, expResults, nil
 }
 
-// загрузка тестового data set'а из файла
-// надо сделать так чтобы он вытаскивал всю csv. А потом уже отделять данные входные и выходыне.
-func loadTestData() ([][]float64, error) {
+func loadTestData() ([][]float64, error) { //TODO: доделать!
 
 	// Открываем CSV файл
 	file, err := os.Open("dataset.csv")
@@ -195,11 +193,11 @@ func loadTestData() ([][]float64, error) {
 	return nil, nil
 }
 
-func saveWeights() { // сохранить мозги (веса) в файл
+func saveWeights() { // сохранить мозги (веса) в файл // todo
 
 }
 
-func loadWeights() { // загрузить пресет мозгов (весов)
+func loadWeights() { // загрузить пресет мозгов (весов) // todo
 
 }
 
@@ -215,38 +213,13 @@ func generateWeights(w [][][]float64) {
 	}
 }
 
-//func generateWeights(w [][][]float64) { // сгенерировать рандомно веса
-//	rand.Seed(1)
-//	for i := 0; i < len(w); i++ {
-//		for j := 0; j < len(w[i]); j++ {
-//			for k := 0; k < len(w[i][j]); k++ {
-//				w[i][j][k] = float64(float64(rand.Float64() * 0.01))
-//			}
-//		}
-//	}
-//}
-
 func activate(s float64) float64 { // функция активации
 	//return math.Tanh(a * s) // гиперболический тангенс
 	return (1 / (1 + math.Pow(math.E, -s)))
 }
 
-/*
-func forward(inputNeurons []float64, outputNeurons []float64, w [][]float64) { // функция прямого распространения
-
-	for i, _ := range outputNeurons {
-		var res float64 = 0
-		for j, input := range inputNeurons {
-			res += input * w[j][i] // i - к output нейрону, j - из input нейрона
-		}
-		outputNeurons[i] = activate(res)
-	}
-}
-*/
-
 func forward(nn *NeuralNetwork) { // функция прямого распространения
 	for n := 0; n < len(nn.w); n++ { // цикл по слоям нейронов
-		//forward(nn.neurons[n], nn.neurons[n+1], nn.w[n]) // текущий слой, следующий слой, веса между этими слоями
 		for i, _ := range nn.neurons[n+1] {
 			var res float64 = 0
 			for j, input := range nn.neurons[n] {
@@ -254,10 +227,7 @@ func forward(nn *NeuralNetwork) { // функция прямого распро�
 			}
 			nn.neurons[n+1][i] = activate(res)
 		}
-		//fmt.Println(nn.neurons[n])
-
 	}
-
 }
 
 func backProp(nn *NeuralNetwork, exp []float64) {
@@ -286,63 +256,6 @@ func backProp(nn *NeuralNetwork, exp []float64) {
 	}
 }
 
-//func backProp(nn NeuralNetwork, exp []float64) { // Функция обратного распространения ошибки
-//	// должен тут вызывать forward() и что-то получать и дальше считать цену ошибки
-//	forward(nn)
-//	m := createMatrixByNN(nn.neurons)
-//	lastLayer := len(nn.neurons) - 1
-//	for i, n := range nn.neurons[lastLayer] {
-//		//m[lastLayer][i] = (1 / (math.Pow(math.Cosh(n), 2))) * (n - exp[i]) // n - полученное значение, exp - ожидаемое значение // производная гиперболического тангенс
-//		m[lastLayer][i] = n * (1 - n) * (n - exp[i]) // n - полученное значение, exp - ожидаемое значение
-//	}
-//	//fmt.Println("LastLayer m", m[lastLayer])
-//	//fmt.Println(len(m))
-//	//fmt.Println(len(nn.neurons))
-//
-//	for i := lastLayer - 1; i > 0; i-- { // neuron layer
-//		for j := 0; j < len(nn.neurons[i]); j++ { // some neuron
-//			var sum float64
-//			for k, elem := range nn.neurons[i+1] { // recursive sum for this neuron
-//				sum += elem * nn.w[i][j][k]
-//			}
-//			//fmt.Println("COSH", math.Cosh(nn.neurons[i][j]))
-//			//fmt.Println("COSH in square", (math.Pow(math.Cosh(nn.neurons[i][j]), 2)))
-//			//fmt.Println("P", (1 / (math.Pow(math.Cosh(nn.neurons[i][j]), 2))))
-//			//fmt.Println("sum", sum)
-//			//fmt.Println("m[i][j]", sum*(1/(math.Pow(math.Cosh(nn.neurons[i][j]), 2))))
-//
-//			//m[i][j] = sum * (1 / (math.Pow(math.Cosh(nn.neurons[i][j]), 2))) // нашли б // производная tanh
-//			m[i][j] = sum * nn.neurons[i][j] * (1 - nn.neurons[i][j]) // нашли б
-//
-//			for k, _ := range nn.neurons[i+1] { // коррекция весов //todo: пересмотреть этот цикл
-//				//fmt.Println(nn.LR)
-//				//fmt.Println("M: ", m[i][j])
-//				//fmt.Println("В нейроне", nn.neurons[i][j])
-//				deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j]) // dW - коррекция весов // TODO: здесь трабл!!!!
-//				//fmt.Println("deltaW: ", deltaW)
-//
-//				nn.w[i][j][k] = nn.w[i][j][k] - deltaW // изменяем веса
-//			}
-//		}
-//	}
-//fmt.Println("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm", m)
-//fmt.Println(" ")
-//for i := len(nn.neurons) - 2; i >= 0; i-- {
-//	for j := 0; j < len(nn.neurons[i]); j++ {
-//
-//		for k, _ := range nn.neurons[i+1] { // коррекция весов //todo: пересмотреть этот цикл
-//			//fmt.Println(nn.LR)
-//			//fmt.Println("M: ", m[i][j])
-//			//fmt.Println("В нейроне", nn.neurons[i][j])
-//			deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j]) // dW - коррекция весов // TODO: здесь трабл!!!!
-//			//fmt.Println("deltaW: ", deltaW)
-//
-//			nn.w[i][j][k] = nn.w[i][j][k] - deltaW // изменяем веса
-//		}
-//	}
-//}
-//}
-
 func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 	for e := 0; e < nn.EPOCH; e++ { // цикл по эпохам
 		for d := 0; d < len(data); d++ { // цикл по дата сету
@@ -355,28 +268,6 @@ func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 		fmt.Printf("Epoch: %d, Accuracy: %.2f%%\n", e+1, accuracy*100)
 	}
 }
-
-//func train(nn NeuralNetwork, data [][]float64, exp [][]float64) {
-//
-//	for e := 0; e < nn.EPOCH; e++ { // цикл по эпохам
-//
-//		for d := 0; d < len(data); d++ { // цикл по дата сету // вынести в функцию
-//			for i := 0; i < len(data[d]); i++ {
-//				nn.neurons[0][i] = data[d][i] // присваиваем входным нейронам данные из дата-сета
-//			}
-//			//forward(nn)
-//			//
-//			//for n := 0; n < len(nn.w); n++ { // цикл по слоям весов нейронов
-//			//	forward(nn.neurons[n], nn.neurons[n+1], nn.w[n]) // текущий слой, следующий слой, веса между этими слоями
-//			//}
-//			backProp(nn, exp[d]) // вычисляем ошибку и корректируем веса
-//		}
-//
-//		accuracy := evaluate(nn, data, exp)
-//		fmt.Printf("Epoch: %d, Accuracy: %.2f%%\n", e+1, accuracy*100)
-//
-//	}
-//}
 
 func predict(nn *NeuralNetwork, data []float64) []float64 { // вычислить
 	for i, _ := range nn.neurons[0] {
