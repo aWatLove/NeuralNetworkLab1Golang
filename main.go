@@ -52,10 +52,10 @@ func main() {
 	}
 	fmt.Println(trainData, expRes)
 
-	neurons := createNeurons(8, 5, 5, 3)
+	neurons := createNeurons(8, 10, 8, 5, 3)
 	w := createWeights(neurons)
 	generateWeights(w)
-	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.7, EPOCH: 5000}
+	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.1, EPOCH: 5000}
 
 	fmt.Printf("NN:\n %v\n", nn.neurons)
 
@@ -131,7 +131,7 @@ func loadDataSet() (trainData [][]float64, expResults [][]float64, err error) {
 				fmt.Println("Error:", err)
 				continue
 			}
-			floatValue *= 0.001
+			floatValue *= 0.01
 			vector = append(vector, floatValue)
 		}
 		data = append(data, vector)
@@ -249,8 +249,11 @@ func backProp(nn *NeuralNetwork, exp []float64) {
 			}
 			m[i][j] = sum * nn.neurons[i][j] * (1 - nn.neurons[i][j])
 			for k := range nn.neurons[i+1] {
-				deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j])
+
+				// TODO: пересчитать формулу дельт и deltaW. И пересчитать заново
+				deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j]) //todo: выделить в фуннцию // походу m[i][j] = 0 и оно не высчитывается()
 				nn.w[i][j][k] += deltaW
+
 			}
 		}
 	}
@@ -264,8 +267,8 @@ func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 			}
 			backProp(nn, exp[d]) // вычисляем ошибку и корректируем веса
 		}
-		accuracy := evaluate(nn, data, exp)
-		fmt.Printf("Epoch: %d, Accuracy: %.2f%%\n", e+1, accuracy*100)
+		accuracy, errExp := evaluate(nn, data, exp)
+		fmt.Printf("Epoch: %d, Accuracy: %.6f%%, ResExp: %.6f\n", e+1, accuracy*100, errExp) // todo:функцию ошибки посчитать
 	}
 }
 
@@ -283,8 +286,10 @@ func predict(nn *NeuralNetwork, data []float64) []float64 { // вычислит�
 	return outputs
 }
 
-func evaluate(nn *NeuralNetwork, data [][]float64, exp [][]float64) (accuracy float64) {
+func evaluate(nn *NeuralNetwork, data [][]float64, exp [][]float64) (accuracy float64, errSum float64) {
 	var count int
+	var res float64
+
 	for i, d := range data {
 		outputs := predict(nn, d)
 		o := imvia(outputs) // output
@@ -292,10 +297,15 @@ func evaluate(nn *NeuralNetwork, data [][]float64, exp [][]float64) (accuracy fl
 		if o == t {
 			count++
 		}
-	}
+		for j, e := range outputs {
+			res += math.Pow((e - exp[i][j]), 2)
+		}
+		errSum = res * 0.5
 
+	}
 	accuracy = float64(count) / float64(len(data))
-	return accuracy
+	errSum = errSum / float64(len(exp))
+	return accuracy, errSum
 }
 
 func imvia(arr []float64) (i int) { //index max value in array
