@@ -53,10 +53,10 @@ func main() {
 
 	inputData := len(trainData[0])
 
-	neurons := createNeurons(inputData, 10, 8, 5, 3)
+	neurons := createNeurons(inputData, 11, 10, 8, 6, 3)
 	w := createWeights(neurons)
 	generateWeights(w)
-	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.1, EPOCH: 5000}
+	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.3, EPOCH: 100000}
 
 	fmt.Printf("NN:\n %v\n", nn.neurons)
 
@@ -295,16 +295,25 @@ func backProp(nn *NeuralNetwork, exp []float64) {
 	for i := lastLayer - 1; i > 0; i-- {
 		for j := 0; j < len(nn.neurons[i]); j++ {
 			var sum float64
-			for k, elem := range nn.neurons[i+1] {
+			for k, elem := range m[i+1] {
 				sum += elem * nn.w[i][j][k]
 			}
-			m[i][j] = sum * nn.neurons[i][j] * (1 - nn.neurons[i][j])
-			for k := range nn.neurons[i+1] {
+			m[i][j] = sum * (1 - nn.neurons[i][j])
+			//for k := range nn.neurons[i+1] {
+			//
+			//	// TODO: пересчитать формулу дельт и deltaW. И пересчитать заново
+			//	deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j]) //todo: выделить в фуннцию // походу m[i][j] = 0 и оно не высчитывается()
+			//	nn.w[i][j][k] += deltaW
+			//
+			//}
+		}
+	}
 
-				// TODO: пересчитать формулу дельт и deltaW. И пересчитать заново
-				deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j]) //todo: выделить в фуннцию // походу m[i][j] = 0 и оно не высчитывается()
+	for i, wi := range nn.w {
+		for j, wij := range wi {
+			for k, _ := range wij {
+				deltaW := -(nn.LR * m[i+1][k] * nn.neurons[i][j]) //todo: выделить в фуннцию // походу m[i][j] = 0 и оно не высчитывается()
 				nn.w[i][j][k] += deltaW
-
 			}
 		}
 	}
@@ -319,7 +328,7 @@ func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 			backProp(nn, exp[d]) // вычисляем ошибку и корректируем веса
 		}
 		accuracy, errExp := evaluate(nn, data, exp)
-		fmt.Printf("Epoch: %d, Accuracy: %.6f%%, ResExp: %.6f\n", e+1, accuracy*100, errExp) // todo:функцию ошибки посчитать
+		fmt.Printf("Epoch: %d, Accuracy: %.6f%%, ResExp: %f\n", e+1, accuracy*100, errExp) // todo:функцию ошибки посчитать
 	}
 }
 
