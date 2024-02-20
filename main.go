@@ -50,9 +50,10 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Println(trainData, expRes)
 
-	neurons := createNeurons(8, 10, 8, 5, 3)
+	inputData := len(trainData[0])
+
+	neurons := createNeurons(inputData, 10, 8, 5, 3)
 	w := createWeights(neurons)
 	generateWeights(w)
 	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.1, EPOCH: 5000}
@@ -99,6 +100,37 @@ func createWeights(neurons [][]float64) (w [][][]float64) {
 	return w
 }
 
+func minMaxVal(data [][]float64, min []float64, max []float64) {
+	for i := 3; i < len(data[0]); i++ {
+		min[i-3] = data[0][i]
+		max[i-3] = data[0][i]
+	}
+
+	for i := 0; i < len(data); i++ {
+		for j := 3; j < len(data[i]); j++ {
+			if data[i][j] < min[j-3] {
+				min[j-3] = data[i][j]
+			}
+			if data[i][j] > max[j-3] {
+				max[j-3] = data[i][j]
+			}
+		}
+	}
+}
+
+func normilizeData(data [][]float64) {
+	minV := make([]float64, 7)
+	maxV := make([]float64, 7)
+	minMaxVal(data, minV, maxV)
+	fmt.Println(minV, maxV)
+	for i := 0; i < len(data); i++ {
+		for j := 3; j < len(data[i]); j++ {
+			data[i][j] = (data[i][j] - minV[j-3]) / (maxV[j-3] - minV[j-3])
+		}
+	}
+
+}
+
 // загрузка data set'а из файла
 func loadDataSet() (trainData [][]float64, expResults [][]float64, err error) {
 	// Открываем CSV файл
@@ -118,20 +150,38 @@ func loadDataSet() (trainData [][]float64, expResults [][]float64, err error) {
 		fmt.Println("Error:", err)
 		return nil, nil, err
 	}
+
+	//
+
 	// Проходим по всем записям и преобразуем числовые значения в формат float64
 	var data [][]float64
 	for _, row := range records[1:] {
 		var vector []float64
 		ind := dictAdd(row[0])
-		ind *= 0.01
-		vector = append(vector, ind)
+		switch ind {
+		case 0:
+			vector = append(vector, 1)
+			vector = append(vector, 0)
+			vector = append(vector, 0)
+		case 1:
+			vector = append(vector, 0)
+			vector = append(vector, 1)
+			vector = append(vector, 0)
+		case 2:
+			vector = append(vector, 0)
+			vector = append(vector, 0)
+			vector = append(vector, 1)
+		default:
+			vector = append(vector, 0)
+			vector = append(vector, 0)
+			vector = append(vector, 0)
+		}
 		for _, value := range row[1 : len(row)-1] { // Начинаем с 2-го элемента, так как первые два это строковые значения
 			floatValue, err := strconv.ParseFloat(value, 64)
 			if err != nil {
 				fmt.Println("Error:", err)
 				continue
 			}
-			floatValue *= 0.01
 			vector = append(vector, floatValue)
 		}
 		data = append(data, vector)
@@ -145,6 +195,7 @@ func loadDataSet() (trainData [][]float64, expResults [][]float64, err error) {
 			expResults = append(expResults, []float64{0, 0, 1})
 		}
 	}
+	normilizeData(data)
 	trainData = data
 
 	return trainData, expResults, nil
