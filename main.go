@@ -13,17 +13,17 @@ import (
 )
 
 type NeuralNetwork struct {
-	neurons [][]float64   `json:"neurons"` // оутпуты на нейроне и сами нейроны
-	w       [][][]float64 `json:"w"`       // веса [слой][нейрон][вес]
+	Neurons [][]float64   `json:"neurons"` // оутпуты на нейроне и сами нейроны
+	W       [][][]float64 `json:"w"`       // веса [слой][нейрон][вес]
 	LR      float64       `json:"lr"`      // скорость обучения
 	EPOCH   int           `json:"epoch"`   // кол-во эпох обучения
-	dw      [][][]float64 `json:"dw"`      // дельты весов
-	mu      float64       `json:"mu"`      // коэф. инерционности
-	t       int           `json:"t"`       // номер - текущей итерации
+	Dw      [][][]float64 `json:"dw"`      // дельты весов // неиспользуется // -deprecated
+	Mu      float64       `json:"mu"`      // коэф. инерционности
+	T       int           `json:"t"`       // номер - текущей итерации
 }
 
 func NewNeuralNetwork(neurons [][]float64, w [][][]float64, LR float64, EPOCH int, dw [][][]float64, mu float64) *NeuralNetwork {
-	return &NeuralNetwork{neurons: neurons, w: w, LR: LR, EPOCH: EPOCH, dw: dw, mu: mu, t: 1}
+	return &NeuralNetwork{Neurons: neurons, W: w, LR: LR, EPOCH: EPOCH, Dw: dw, Mu: mu, T: 1}
 }
 
 var dicts = make(map[string]float64) // словарь
@@ -57,13 +57,15 @@ func main() {
 	w := createWeights(neurons)
 	generateWeights(w)
 	dw := createWeights(neurons)
-	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.2, EPOCH: 100000, dw: dw, mu: 0.1}
+	var nn = NeuralNetwork{Neurons: neurons, W: w, LR: 0.2, EPOCH: 100000, Dw: dw, Mu: 0.1}
 
 	train(&nn, trainData, expRes)
 
+	nn.saveNN("nn")
+
 	predict(&nn, trainData[0])
-	out := imvia(nn.neurons[len(nn.neurons)-1])
-	fmt.Println(nn.neurons[len(nn.neurons)-1])
+	out := imvia(nn.Neurons[len(nn.Neurons)-1])
+	fmt.Println(nn.Neurons[len(nn.Neurons)-1])
 	fmt.Println("result:", results[out])
 
 	//fmt.Printf("NN:\n %v\n", nn.neurons)
@@ -243,7 +245,33 @@ func loadTestData() ([][]float64, error) { //TODO: доделать!
 	return nil, nil
 }
 
-func saveWeights(filename string, w [][][]float64) { // сохранить мозги (веса) в файл // todo
+func (nn *NeuralNetwork) saveNN(filename string) error {
+	jsonData, err := json.MarshalIndent(nn, "", "    ")
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(filename, jsonData, 0644)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Данные нейронной сети успешно сохранены в файл %s\n", filename)
+	return nil
+}
+
+func loadNN(filename string) (*NeuralNetwork, error) {
+	var nn NeuralNetwork
+	fileData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(fileData, &nn)
+	if err != nil {
+		return nil, err
+	}
+	return &nn, nil
+}
+
+func saveWeights(filename string, w [][][]float64) { // сохранить мозги (веса) в файл
 	jsonData, err := json.Marshal(w)
 	if err != nil {
 		fmt.Println("Ошибка сохранения весов в JSON-файл", err)
@@ -284,43 +312,43 @@ func activate(s float64) float64 {
 }
 
 func forward(nn *NeuralNetwork) { // функция прямого распространения
-	for n := 0; n < len(nn.w); n++ { // цикл по слоям нейронов
-		for i, _ := range nn.neurons[n+1] {
+	for n := 0; n < len(nn.W); n++ { // цикл по слоям нейронов
+		for i, _ := range nn.Neurons[n+1] {
 			var res float64 = 0
-			for j, input := range nn.neurons[n] {
-				res += input * nn.w[n][j][i] // i - к output нейрону, j - из input нейрона
+			for j, input := range nn.Neurons[n] {
+				res += input * nn.W[n][j][i] // i - к output нейрону, j - из input нейрона
 			}
-			nn.neurons[n+1][i] = activate(res)
+			nn.Neurons[n+1][i] = activate(res)
 		}
 	}
 }
 
 func backProp(nn *NeuralNetwork, exp []float64) {
 	forward(nn)
-	lastLayer := len(nn.neurons) - 1
-	m := createMatrixByNN(nn.neurons)
+	lastLayer := len(nn.Neurons) - 1
+	m := createMatrixByNN(nn.Neurons)
 
 	// Вычисляем градиенты в последнем слое
-	for i, n := range nn.neurons[lastLayer] {
+	for i, n := range nn.Neurons[lastLayer] {
 		m[lastLayer][i] = n * (1 - n) * (n - exp[i])
 	}
 
 	// Обратное распространение ошибки через скрытые слои
 	for i := lastLayer - 1; i > 0; i-- {
-		for j := 0; j < len(nn.neurons[i]); j++ {
+		for j := 0; j < len(nn.Neurons[i]); j++ {
 			var sum float64
 			for k, elem := range m[i+1] {
-				sum += elem * nn.w[i][j][k]
+				sum += elem * nn.W[i][j][k]
 			}
-			m[i][j] = sum * (1 - nn.neurons[i][j])
+			m[i][j] = sum * (1 - nn.Neurons[i][j])
 		}
 	}
 
-	for i, wi := range nn.w {
+	for i, wi := range nn.W {
 		for j, wij := range wi {
 			for k, _ := range wij {
-				deltaW := -(nn.LR * m[i+1][k] * nn.neurons[i][j])
-				nn.w[i][j][k] += deltaW
+				deltaW := -(nn.LR * m[i+1][k] * nn.Neurons[i][j])
+				nn.W[i][j][k] += deltaW
 				//deltaW := -(nn.LR * (nn.mu*nn.dw[i][j][k]*(float64(nn.t)-1) + (1-nn.mu)*m[i+1][k]*nn.neurons[i][j]))
 				//nn.dw[i][j][k] = deltaW
 				//nn.t += 1
@@ -332,11 +360,11 @@ func backProp(nn *NeuralNetwork, exp []float64) {
 
 func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 	maxAcc := 0.0
-	var niceW = createWeights(nn.neurons)
+	var niceW = createWeights(nn.Neurons)
 	for e := 0; e < nn.EPOCH; e++ { // цикл по эпохам
 		for d := 0; d < len(data); d++ { // цикл по дата сету
 			for i := 0; i < len(data[d]); i++ {
-				nn.neurons[0][i] = data[d][i] // присваиваем входным нейронам данные из дата-сета
+				nn.Neurons[0][i] = data[d][i] // присваиваем входным нейронам данные из дата-сета
 			}
 			backProp(nn, exp[d]) // вычисляем ошибку и корректируем веса
 		}
@@ -349,7 +377,7 @@ func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 			for i := 0; i < len(niceW); i++ {
 				for j := 0; j < len(niceW[i]); j++ {
 					for k := 0; k < len(niceW[i][j]); k++ {
-						niceW[i][j][k] = nn.w[i][j][k]
+						niceW[i][j][k] = nn.W[i][j][k]
 					}
 				}
 			}
@@ -357,19 +385,19 @@ func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 
 	}
 	saveWeights(fmt.Sprintf("w acc %.f", maxAcc*100), niceW) // save best weights
-	nn.w = niceW
+	nn.W = niceW
 }
 
 func predict(nn *NeuralNetwork, data []float64) []float64 { // вычислить
-	for i, _ := range nn.neurons[0] {
-		nn.neurons[0][i] = data[i]
+	for i, _ := range nn.Neurons[0] {
+		nn.Neurons[0][i] = data[i]
 	}
 	forward(nn)
 
-	ll := len(nn.neurons) - 1 // last layer
-	outputs := make([]float64, len(nn.neurons[ll]))
-	for i, _ := range nn.neurons[ll] {
-		outputs[i] = nn.neurons[ll][i]
+	ll := len(nn.Neurons) - 1 // last layer
+	outputs := make([]float64, len(nn.Neurons[ll]))
+	for i, _ := range nn.Neurons[ll] {
+		outputs[i] = nn.Neurons[ll][i]
 	}
 	return outputs
 }
