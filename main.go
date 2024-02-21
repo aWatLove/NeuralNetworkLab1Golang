@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
@@ -11,19 +13,17 @@ import (
 )
 
 type NeuralNetwork struct {
-	neurons [][]float64   // оутпуты на нейроне и сами нейроны
-	w       [][][]float64 // веса [слой][нейрон][вес]
-
-	LR    float64 // скорость обучения
-	EPOCH int     // кол-во эпох обучения
+	neurons [][]float64   `json:"neurons"` // оутпуты на нейроне и сами нейроны
+	w       [][][]float64 `json:"w"`       // веса [слой][нейрон][вес]
+	LR      float64       `json:"lr"`      // скорость обучения
+	EPOCH   int           `json:"epoch"`   // кол-во эпох обучения
+	dw      [][][]float64 `json:"dw"`      // дельты весов
+	mu      float64       `json:"mu"`      // коэф. инерционности
+	t       int           `json:"t"`       // номер - текущей итерации
 }
 
-//TODO: чтобы учитывалось смещение B biases + просчитывалось в forward() и при создании весов тоже. Можно сделать как Доп.Нейрон
-//TODO: сделать обработку ошибок с тем что дата сет и кол-во входных нейронов совпадало
-//TODO: сделать обработку ошибок с тем чтобы ожидаемые результаты с выходными как то правильно работали
-
-func NewNeuralNetwork(neurons [][]float64, w [][][]float64, LR float64, EPOCH int) *NeuralNetwork {
-	return &NeuralNetwork{neurons: neurons, w: w, LR: LR, EPOCH: EPOCH}
+func NewNeuralNetwork(neurons [][]float64, w [][][]float64, LR float64, EPOCH int, dw [][][]float64, mu float64) *NeuralNetwork {
+	return &NeuralNetwork{neurons: neurons, w: w, LR: LR, EPOCH: EPOCH, dw: dw, mu: mu, t: 1}
 }
 
 var dicts = make(map[string]float64) // словарь
@@ -53,12 +53,11 @@ func main() {
 
 	inputData := len(trainData[0])
 
-	neurons := createNeurons(inputData, 11, 10, 8, 6, 3)
+	neurons := createNeurons(inputData, 12, 10, 8, 6, 3)
 	w := createWeights(neurons)
 	generateWeights(w)
-	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.3, EPOCH: 100000}
-
-	fmt.Printf("NN:\n %v\n", nn.neurons)
+	dw := createWeights(neurons)
+	var nn = NeuralNetwork{neurons: neurons, w: w, LR: 0.2, EPOCH: 100000, dw: dw, mu: 0.1}
 
 	train(&nn, trainData, expRes)
 
@@ -67,10 +66,10 @@ func main() {
 	fmt.Println(nn.neurons[len(nn.neurons)-1])
 	fmt.Println("result:", results[out])
 
-	fmt.Printf("NN:\n %v\n", nn.neurons)
+	//fmt.Printf("NN:\n %v\n", nn.neurons)
 
-	predict(&nn, trainData[61])
-	fmt.Printf("NN:\n %v\n", nn.neurons)
+	//predict(&nn, trainData[61])
+	//fmt.Printf("NN:\n %v\n", nn.neurons)
 }
 
 func createNeurons(a ...int) (neurons [][]float64) {
@@ -244,16 +243,32 @@ func loadTestData() ([][]float64, error) { //TODO: доделать!
 	return nil, nil
 }
 
-func saveWeights() { // сохранить мозги (веса) в файл // todo
-
+func saveWeights(filename string, w [][][]float64) { // сохранить мозги (веса) в файл // todo
+	jsonData, err := json.Marshal(w)
+	if err != nil {
+		fmt.Println("Ошибка сохранения весов в JSON-файл", err)
+	}
+	err = ioutil.WriteFile(filename, jsonData, 0644)
+	if err != nil {
+		fmt.Println("Ошибка записи весов в JSON-файл", err)
+	}
+	fmt.Printf("Данные успешно сохранены в файл %s\n", filename)
 }
 
-func loadWeights() { // загрузить пресет мозгов (весов) // todo
-
+func loadWeights(filename string) ([][][]float64, error) { // загрузить пресет мозгов (весов) // todo
+	var w [][][]float64
+	fileData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(fileData, &w)
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
 }
 
 func generateWeights(w [][][]float64) {
-	//rand.Seed(1)
 	for i := 0; i < len(w); i++ {
 		for j := 0; j < len(w[i]); j++ {
 			for k := 0; k < len(w[i][j]); k++ {
@@ -264,8 +279,7 @@ func generateWeights(w [][][]float64) {
 	}
 }
 
-func activate(s float64) float64 { // функция активации
-	//return math.Tanh(a * s) // гиперболический тангенс
+func activate(s float64) float64 {
 	return (1 / (1 + math.Pow(math.E, -s)))
 }
 
@@ -299,27 +313,26 @@ func backProp(nn *NeuralNetwork, exp []float64) {
 				sum += elem * nn.w[i][j][k]
 			}
 			m[i][j] = sum * (1 - nn.neurons[i][j])
-			//for k := range nn.neurons[i+1] {
-			//
-			//	// TODO: пересчитать формулу дельт и deltaW. И пересчитать заново
-			//	deltaW := -(nn.LR * m[i][j] * nn.neurons[i][j]) //todo: выделить в фуннцию // походу m[i][j] = 0 и оно не высчитывается()
-			//	nn.w[i][j][k] += deltaW
-			//
-			//}
 		}
 	}
 
 	for i, wi := range nn.w {
 		for j, wij := range wi {
 			for k, _ := range wij {
-				deltaW := -(nn.LR * m[i+1][k] * nn.neurons[i][j]) //todo: выделить в фуннцию // походу m[i][j] = 0 и оно не высчитывается()
+				deltaW := -(nn.LR * m[i+1][k] * nn.neurons[i][j])
 				nn.w[i][j][k] += deltaW
+				//deltaW := -(nn.LR * (nn.mu*nn.dw[i][j][k]*(float64(nn.t)-1) + (1-nn.mu)*m[i+1][k]*nn.neurons[i][j]))
+				//nn.dw[i][j][k] = deltaW
+				//nn.t += 1
+				//nn.w[i][j][k] += deltaW
 			}
 		}
 	}
 }
 
 func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
+	maxAcc := 0.0
+	var niceW = createWeights(nn.neurons)
 	for e := 0; e < nn.EPOCH; e++ { // цикл по эпохам
 		for d := 0; d < len(data); d++ { // цикл по дата сету
 			for i := 0; i < len(data[d]); i++ {
@@ -328,8 +341,23 @@ func train(nn *NeuralNetwork, data [][]float64, exp [][]float64) {
 			backProp(nn, exp[d]) // вычисляем ошибку и корректируем веса
 		}
 		accuracy, errExp := evaluate(nn, data, exp)
-		fmt.Printf("Epoch: %d, Accuracy: %.6f%%, ResExp: %f\n", e+1, accuracy*100, errExp) // todo:функцию ошибки посчитать
+
+		fmt.Printf("Epoch: %d, Accuracy: %.6f%%, ResExp: %f\n", e+1, accuracy*100, errExp)
+
+		if accuracy > maxAcc { // копирую максимально точные веса
+			maxAcc = accuracy
+			for i := 0; i < len(niceW); i++ {
+				for j := 0; j < len(niceW[i]); j++ {
+					for k := 0; k < len(niceW[i][j]); k++ {
+						niceW[i][j][k] = nn.w[i][j][k]
+					}
+				}
+			}
+		}
+
 	}
+	saveWeights(fmt.Sprintf("w acc %.f", maxAcc*100), niceW) // save best weights
+	nn.w = niceW
 }
 
 func predict(nn *NeuralNetwork, data []float64) []float64 { // вычислить
